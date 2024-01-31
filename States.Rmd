@@ -1,0 +1,377 @@
+---
+title: "Can we predict the state by the mental health of a person?"
+author: "Josep Damià Ruiz Pons"
+date: "2024-01-23"
+output: html_document
+---
+## Mental health dataset
+To try to answer this question we are going to take a few variables of the complete dataset that are related to mental health and build some classification models with the techniques studied along the course. These variables are: 
+
+- State: this is the state of residence of the people. It will be our ground truth. [chr]
+- MentalHealthDays: It is the mental health state of the people, which includes stress, depression, and problems with emotions, on the last 30 days [num: 0, 1, ..., 30]
+- SleepHours: On average, how many hours of sleep does the people get [num: 0, 1, ..., 24]
+- HadDepressiveDissorder: If the subject ever had depressive disorder (including depression, major depression, dysthymia, or minor depression) [chr: No, Yes]
+- DifficultyConcentrating: If because of a physical, mental, or emotional condition, the subject has serious difficulty concentrating, remembering, or making decisions. [chr: No , Yes]
+- HighRiskLastYear: If the subject has injected any drug other than those prescribed for you in the past year. If has been treated for a sexually transmitted disease or STD in
+the past year or if has given or received money or drugs in exchange for sex in the past year. This one has been chosen since we consider that the consequence of having suffered of this problem, can cause some kind of mental harm or trauma. [chr: No, Yes]
+
+```{r}
+mental_health_df = cdf[c("State","HadDepressiveDisorder","DifficultyConcentrating","MentalHealthDays","HighRiskLastYear","SleepHours")]
+# Supongamos que mental_health_df es tu data frame
+# Elimina todas las filas donde mental_health_df$State es igual a -1
+mental_health_df <- mental_health_df[mental_health_df$State != -1, ]
+mental_health_df <- mental_health_df[order(mental_health_df$State), ]
+
+heatmap(cor(mental_health_df))
+```
+To try to achieve some good results we are going to use as models: decision tree implementations, K-Nearest Neighbours and Naive Bayes algorithm.
+
+First of all, we are going to see how the data performs only with the general data cleansing applied to the dataset.
+
+To get a good accuaracy we are goint to split the mental_health_df into training and a testing sets with train/test ratio of 70% since we consider the dataset is large enough to get a good training with this percentage of the data.
+```{r}
+
+get_state_label = function(id){
+  state_labels = na.omit(unique(df$State))
+  state_ids = na.omit(unique(mental_health_df$State))
+  return(state_labels[id])
+}
+
+mental_health_df$State_label <- get_state_label(mental_health_df$State)
+```
+
+
+```{r}
+library(caTools)
+split <- sample.split(mental_health_df$State, SplitRatio = 0.7)
+train_data <- subset(mental_health_df, split == TRUE)
+test_data <- subset(mental_health_df, split == FALSE)
+```   
+
+###Decision Tree (CART)
+
+```{r}
+# Load required packages
+#install.packages(c("rpart"))
+library(rpart)
+
+# Build a decision tree
+
+#Set 1
+tree_model <- rpart(
+  State ~ HadDepressiveDisorder + SleepHours + DifficultyConcentrating + HighRiskLastYear + MentalHealthDays,
+  data = train_data, 
+  method = "class",
+  control = rpart.control(cp=1e-7)
+)
+```
+We have trained a decision tree (CART) model and after that we are going to get the best tree and prune it.
+
+```{r}
+bestcp <- tree_model$cptable[which.min(tree_model$cptable[,"xerror"]),"CP"]
+tree_model <- prune(tree_model, cp = bestcp)
+
+# Make predictions on the trained data
+train_pred_rpart <- predict(tree_model, train_data[, c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )], type = 'class')
+
+# Get the accuracy of the model on the test set.
+accuracy_rpart <- sum(train_pred_rpart == train_data$State) / nrow(train_data)
+
+# Print the accuracy
+print(paste('Accuracy for training data using rpart is found to be', round(accuracy_rpart * 100, 2), '%'))
+
+```
+After making the predictions on the decision tree we can see that we only are able to get a 6% of accuaracy.
+
+### K-NN
+
+```{r}
+library(class)
+library(ggplot2)
+library(knitr)
+library(gmodels)
+distance_func <- function(x, y) sum(x != y)
+
+knn_model <- knn(train =  train_data[,c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )], test = test_data[, c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )], train_data$State, k = 7)
+test_accuracy <- sum(knn_model == test_data$State) / nrow(test_data)
+
+
+
+cat("Training Set1 Accuracy:", test_accuracy, "\n")
+
+
+```
+For the K-NN model we can't get any results since the model can't finish due to have too many ties. We believe that this is caused because most of the variables are binary producing a lot of ties in distance. In the future we are going to try to avoid it.
+
+### Naive Bayes
+
+```{r}
+library(e1071)
+
+
+# Crear un modelo de Naive Bayes
+naive_bayes_model <- naiveBayes( y = train_data$State ,x =  train_data[,c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )] , data = train_data)
+
+# Realizar predicciones en el conjunto de prueba
+predictions <- predict(naive_bayes_model, test_data)
+conf_matrix<-as.matrix(table(test_data$State, predictions))
+correct <-sum(diag(conf_matrix))
+n<-length(test_data$State)
+accuracy <-correct/n
+accuracy
+```
+With the Naive Bayes model we also get a very low accuracy, only 5%.
+
+
+## Data processing
+
+We have seen that with the mental health df as it comes from the whole dataset, we can't get any results. We believe that this is mainly because we have too many classes to predict and because of the nature of the data. The decisions that we have made to try to avoid this are:
+
+### Reducing labels
+
+First of all to reduce the number of labels to predict, we have made some research (https://en.wikipedia.org/wiki/List_of_states_and_territories_of_the_United_States_by_population_density) and based on the USA census of 2020 we have divided the States into density of population, to be exact by number of people by km2. The clasifications are:
+
+- More than 100 people by km2
+- Between 100 and 43 people by km2
+- Between 43 and 20 pepple by km2 
+- Less than 20 people by km2
+
+We have chosen this classification since we hope that 4 labels are few enough to get a good classifier. Another reason is that with this classification we get 4 balanced classes to predict, avoiding making a model better at predicting some class.
+
+```{r}
+above100 <- c("District of Columbia", "New Jersey", "Rhode Island", "Puerto Rico","Massachusetts", "Connecticut",
+               "Guam", "Virgin Islands", "Maryland", "Delaware", "New York", "Florida", "Pennsylvania", "Ohio")
+between100to43 <- c("California", "Illinois", "Hawaii", "Virginia","North Carolina", "Indiana","Georgia",
+                    "Michigan","South Carolina", "Tennessee","New Hampshire","Washington" , "Kentucky")
+between43to20 <- c("Texas", "Wisconsin","Louisiana","Alabama","Missouri","West Virginia", "Minnesota","Vermont","Mississippi","Arizona","Arkansas","Oklahoma","Iowa")
+
+under20 <-c("Colorado","Maine","Oregon","Utah","Kansas","Nevada","Nebraska", "Idaho", "New Mexico", "South Dakota","North Dakota", "Montana", "Wyoming", "Alaska")
+
+
+```
+
+
+
+```{r}
+mental_health_df$density_class <- ifelse(is.element(mental_health_df$State_label, above100),1,ifelse(is.element(mental_health_df$State_label,between100to43),2,ifelse(is.element(mental_health_df$State_label,between43to20),3,ifelse(is.element(mental_health_df$State_label,under20),4,5))))
+table(mental_health_df$density_class)
+
+
+```
+
+
+
+```{r}
+mental_health_df$density_class_label <- ifelse(mental_health_df$density_class == 1, 'Above100',ifelse(mental_health_df$density_class == 2,'Between100and43', ifelse(mental_health_df$density_class == 3, 'Between43and20','Under20'   )))
+```
+
+
+
+```{r}
+summary(mental_health_df)
+str(mental_health_df)
+```
+The other technique to improve the nature of the data is to normalize it so all the values are between 0 and 1. Normalizing the data in a classification model is beneficial because it ensures that features with different scales contribute equally to the model, preventing dominance by variables with larger magnitudes.
+
+```{r}
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+```
+
+```{r}
+mental_health_df$density_class_label <- ifelse(mental_health_df$density_class == 1 , 'MT100', ifelse(mental_health_df$density_class ==2,'B100TO43',ifelse(mental_health_df$density_class ==3,'B43TO20','U20')))
+mental_health_df$density_class_label <- as.factor(mental_health_df$density_class_label)
+```
+```{r}
+table(mental_health_df$density_class_label)
+```
+
+```{r}
+
+mental_health_df_normalized <-as.data.frame(lapply(mental_health_df[c("density_class","HadDepressiveDisorder","DifficultyConcentrating","MentalHealthDays","HighRiskLastYear","SleepHours")], normalize))
+mental_health_df_normalized$density_class_label <- mental_health_df$density_class_label
+```
+
+```{r}
+table(mental_health_df_normalized$density_class_label)
+```
+
+After that we split our data again.
+```{r}
+library(caTools)
+
+split <- sample.split(mental_health_df_normalized$density_class, SplitRatio = 0.7)
+train_data <- subset(mental_health_df_normalized, split == TRUE)
+test_data <- subset(mental_health_df_normalized, split == FALSE)
+```   
+
+Let's see how our models have improved:
+
+### Decision Tree (CART)
+```{r}
+# Load required packages
+#install.packages(c("rpart"))
+library(rpart)
+
+# Build a decision tree
+
+#Set 1
+tree_model <- rpart(
+  density_class_label ~ HadDepressiveDisorder + SleepHours + DifficultyConcentrating + HighRiskLastYear + MentalHealthDays,
+  data = train_data, 
+  method = "class",
+  control = rpart.control(cp=1e-6)
+)
+
+
+bestcp <- tree_model$cptable[which.min(tree_model$cptable[,"xerror"]),"CP"]
+tree_model <- prune(tree_model, cp = bestcp)
+
+# Make predictions on the trained data
+train_pred_rpart <- predict(tree_model, train_data[, c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )], type = 'class')
+
+# Get the accuracy of the model on the test set.
+accuracy_rpart <- sum(train_pred_rpart == train_data$density_class_label) / nrow(train_data)
+
+# Print the accuracy
+print(paste('Accuracy for training data using rpart is found to be', accuracy_rpart * 100, '%'))
+
+```
+
+## Decision tree (ID3)
+```{r}
+library(RWeka)
+library(party)
+library(partykit)
+library(FSelector)
+
+id3 <- J48(density_class_label ~ HadDepressiveDisorder + SleepHours + DifficultyConcentrating + HighRiskLastYear + MentalHealthDays, data = train_data)
+summary(id3)
+```
+```{r}
+predictions <- predict(id3, test_data)
+conf_matrix<-as.matrix(table(test_data$density_class_label, predictions))
+conf_matrix
+correct <-sum(diag(conf_matrix))
+n<-length(test_data$density_class_label)
+accuracy <-correct/n
+accuracy
+```
+
+## K-NN
+
+```{r}
+library(class)
+library(ggplot2)
+library(knitr)
+library(gmodels)
+distance_func <- function(x, y) sum(x != y)
+
+knn_model <- knn(train =  train_data[,c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )], test = test_data[, c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )], train_data$density_class, k = 7)
+test_accuracy <- sum(knn_model == test_data$density_class) / nrow(test_data)
+
+
+cat("Training Set1 Accuracy:", test_accuracy, "\n")
+
+
+```
+We still get too many ties.
+
+
+### Naive Bayes
+
+```{r}
+library(e1071)
+
+
+# Crear un modelo de Naive Bayes
+
+naive_bayes_model <- naiveBayes( y = train_data$density_class_label ,x =  train_data[,c("MentalHealthDays","SleepHours", "HadDepressiveDisorder", "DifficultyConcentrating", "HighRiskLastYear" )] , data = train_data)
+
+# Realizar predicciones en el conjunto de prueba
+predictions <- predict(naive_bayes_model, test_data)
+
+
+conf_matrix<-as.matrix(table(test_data$density_class_label, predictions))
+conf_matrix
+correct <-sum(diag(conf_matrix))
+n<-length(test_data$density_class)
+accuracy <-correct/n
+accuracy
+```
+
+With the techniques applied we get a 26% of accuaracy in the models. 
+
+
+Finally, we want to see if the class of density can be predicted with the whole dataset since we don't get good results with the mental health variables.
+
+```{r}
+cdf_normalized <-as.data.frame(lapply(cdf, normalize))
+
+cdf_normalized <- cdf_normalized[-cdf_normalized$State]
+cdf_normalized$density_class <- mental_health_df_normalized$density_class
+
+```
+
+```{r}
+library(caTools)
+
+split <- sample.split(cdf_normalized$density_class, SplitRatio = 0.7)
+train_data <- subset(cdf_normalized, split == TRUE)
+test_data <- subset(cdf_normalized, split == FALSE)
+```
+
+
+
+```{r}
+#install.packages(c("rpart"))
+library(rpart)
+
+# Build a decision tree
+
+#Set 1
+tree_model <- rpart(
+  density_class ~ .,
+  data = train_data, 
+  method = "class",
+  control = rpart.control(cp=1e-21)
+)
+
+plot(tree_model, main = "Tree model for set 1")
+text(tree_model, cex = 0.5)
+
+bestcp <- tree_model$cptable[which.min(tree_model$cptable[,"xerror"]),"CP"]
+tree_model <- prune(tree_model, cp = bestcp)
+
+# Make predictions on the trained data
+train_pred_rpart <- predict(tree_model, train_data, type = 'class')
+
+# Get the accuracy of the model on the test set.
+accuracy_rpart <- sum(train_pred_rpart == train_data$density_class) / nrow(train_data)
+
+# Print the accuracy
+print(paste('Accuracy for training data using rpart is found to be', round(accuracy_rpart * 100, 2), '%'))
+plot(tree_model, main = "Tree model for set 1")
+text(tree_model, cex = 0.5)
+```
+
+```{r}
+library(e1071)
+
+x <- train_data[, !(names(train_data) == "density_class")]
+
+
+naive_bayes_model <- naiveBayes( y = train_data$density_class ,x =x , data = train_data)
+
+# Realizar predicciones en el conjunto de prueba
+predictions <- predict(naive_bayes_model, test_data)
+
+
+conf_matrix<-as.matrix(table(test_data$density_class, predictions))
+conf_matrix
+correct <-sum(diag(conf_matrix))
+n<-length(test_data$density_class)
+accuracy <-correct/n
+accuracy
+```
