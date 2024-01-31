@@ -1,0 +1,95 @@
+---
+title: "Final Project - Macia - 5 - K-means"
+author: "Maçià Bartomeu Llabrés Ferrer"
+date: "2023-01-26"
+output: html_document
+---
+
+We start by loading the previous "prep" file and check if the data is the same.
+```{r}
+df <- read.csv("FPdata_NOR.csv", stringsAsFactors = TRUE)
+str(df)
+summary(df)
+```
+
+This time we will try K-Means, so I will try to reduce the number of the variables. So I will use PCA with the numerical variables: "PhysicalHealthDays", "MentalHealthDays", "SleepHours", "HeightInMeters", "WeightInKilograms" and "BMI". If this does not give us a lower number, I always can drop "HeightInMeters" and "WeightInKilograms" as "BMI" is calculated by dividing an adult's weight in kilograms by their height in metres squared.
+```{r}
+for (i in 1:ncol(df)) {
+  print(paste(i,colnames(df)[i]))
+}
+```
+
+```{r}
+df_pca<- prcomp(df[,c(4,5,8,30,31,32)], scale = TRUE)
+summary(df_pca)
+plot(df_pca, type="l")
+```
+
+We can clearly see 3 is the optimal number. So let’s keep it and reintroduce the categorical data.
+```{r}
+df_pca2 <- as.data.frame(df_pca$x[,1:3])
+df_pca2 <- cbind(df_pca2, df[, -c(4,5,8,30,31,32)])
+str(df_pca2)
+summary(df_pca2)
+```
+
+To simplify even more, first I will only study "HadSkinCancer" (because is the disease most impacted by ethnicity) dropping all other diseases and "RaceEthnicityCategory".
+```{r}
+df_simple <- df_pca2[, c(1:9,14,20:37)]
+str(df_simple)
+```
+Hopkins statistic will tell us if our data is clusterable. I tried with the whole dataset but my computer can not handle it, so I also reduced the number of rows.
+```{r}
+set.seed(123)
+idx <- sample(1:dim(df_simple)[1], 4000)
+df_sample <- df_simple[idx,]
+str(df_sample)
+print(paste("This sample dataset has", length(unique(df_sample$RaceEthnicityCategory)), "unique ethnicities."))
+```
+
+```{r}
+library(factoextra)
+res <- get_clust_tendency(df_sample[1:27], n = nrow(df_sample)-1, graph = FALSE)
+res$hopkins_stat
+```
+
+As H ≈ 0.7, in the next steps I will try to determine the number of clusters and if the coincide with the number of unique ethnicities.
+```{r}
+set.seed(123)
+
+k.max <- 15 # Maximal number of clusters
+
+wss <- sapply(1:k.max, 
+              function(k){kmeans(df_sample[1:27], k)$tot.withinss})
+
+plot(1:k.max, wss,
+     type="b", pch = 19, frame = FALSE, 
+     xlab="Number of clusters K",
+     ylab="Total within-clusters sum of squares")
+abline(v = 5, col = "red")
+```
+
+The elbow plot shows that our sample data can be clustered in 5 groups, and that number is the exact amount of unique ethnicities in it.
+```{r}
+set.seed(123)
+
+k.max <- 15
+
+kmeans_result <- kmeans(df_sample[1:27], 5)
+
+df_sample$cluster <- kmeans_result$cluster
+
+print(df_sample)
+```
+
+Now it is only a matter of counting both variables and checking how similar they are.
+```{r}
+print("Ethnicity count:")
+table(df_sample$RaceEthnicityCategory)
+print("Cluster count:")
+table(df_sample$cluster)
+print("Ethnicity x Cluster count:")
+table(df_sample$RaceEthnicityCategory, df_sample$cluster)
+```
+
+This makes it clear that the clusters have no relationship with ethnicities, since every ethnicity appears in every cluster and vice versa. It is true that this is a very small random sample, and perhaps with other seeds, satisfactory results could be obtained, but due to the computational cost of the algorithms, it is not feasible. We have already seen through linear regression and hclust that although ethnicities do influence the probability of suffering (or not) from certain diseases, they are not a highly determining factor for it.
