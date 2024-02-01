@@ -1,0 +1,161 @@
+---
+title: "Question Two"
+author: "Group Rimundo Lulio"
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
+---
+
+```{r}
+cdf <- read.csv('FPdata_CLEAN.csv')
+```
+
+
+## Question two: Can we predict the general health with the available data?
+
+First of all we will normalize the numeric data, to do soo we will run a function to normalize between [0,1] in order to get better results.
+
+```{r}
+normalize <- function(x) {
+  return ((x - min(x)) / (max(x) - min(x)))
+}
+
+columns_to_normalize <- c("PhysicalHealthDays", "MentalHealthDays", "SleepHours")
+cdf[columns_to_normalize] <- lapply(cdf[columns_to_normalize], normalize)
+```
+
+First of all, our GeneralStatus classes are balanced ? Probably not so we will run a undersize of the data.
+```{r}
+barplot(table(cdf$GeneralHealth), col = "skyblue", main = "Non-balanced Class Distribution")
+
+# Get the ferquencies of each label and get the min frequent
+label_frequencies <- table(cdf$GeneralHealth)
+min_freq_label <- as.numeric(names(label_frequencies[label_frequencies == min(label_frequencies)]))
+
+# Get the minimum frequency count
+min_freq_count <- min(label_frequencies)
+
+# Balance classes by selecting the same number of samples for each label
+balanced_data <- do.call(rbind, lapply(unique(cdf$GeneralHealth), function(label) {
+  subset(cdf, GeneralHealth == label)[sample(nrow(subset(cdf, GeneralHealth == label)), min_freq_count), ]
+}))
+
+# Display the balanced class distribution
+barplot(table(balanced_data$GeneralHealth), col = "skyblue", main = "Balanced Class Distribution")
+```
+As we can see the class unbalance has been address. The next step to create a model that trains is to divide the data between train and test sets, we will use 80% of the balanced data as training, we will also set a seed in order to reproduce this sets in future sets.
+
+```{r}
+set.seed(43)
+
+ind <- sample(2, nrow(balanced_data), replace=TRUE, prob=c(0.80, 0.20))
+
+train_indices <- sample(1:nrow(balanced_data), 0.75 * nrow(balanced_data))
+train_data <- balanced_data[ind==1,]
+test_data <- balanced_data[ind==2,]
+
+```
+
+Now that we have all necessary components to run our models we will try to make predicitions with them, trying different parameters and algorithms, the models presented here are the most optimals of the tested, a deep explanation of each model and the conclusions of each model are explained on the tecnical report of this final project.
+
+### First model: KNN 
+
+```{r}
+library(gmodels)
+library(class)
+
+predictor_cols <- setdiff(colnames(df), "GeneralHealth")
+
+calssifiers.KNN <- knn(train = train_data[, predictor_cols], 
+           test = test_data[, predictor_cols], 
+           cl = train_data$GeneralHealth, 
+           k = 6)
+
+results <- CrossTable(x = test_data$GeneralHealth, y = calssifiers.KNN, prop.chisq = FALSE)
+accuracy.KNN <- sum(results$t[1:2, 1:2]) / sum(results$t)
+print(paste("Knn accuracy:", round(accuracy.KNN * 100, 2), "%"))
+```
+
+### Second model: Naïve Bayes 
+
+```{r}
+library(e1071)
+
+classifiers.NB <- naiveBayes(x = train_data[, predictor_cols], y = train_data$GeneralHealth)
+predicts.NB <- predict(classifiers.NB, newdata = test_data[, predictor_cols])
+results.NB <- data.frame(Actual = test_data$GeneralHealth, Predicted = predicts.NB)
+accuracy.NB <- sum(results.NB$Actual == results.NB$Predicted) / nrow(results.NB)
+print(paste("Naive Bayes accuracy:", round(accuracy.NB * 100, 2), "%"))
+```
+
+### Third model: Decision tree
+
+```{r}
+library(rpart.plot)
+
+# Build the rpart model
+classifier_rpart <- rpart(GeneralHealth ~ ., data = train_data, method = "class", control = rpart.control(cp = 1e-5))
+
+# Get the best classifier from the generated trees
+bestcp <- classifier_rpart$cptable[which.min(classifier_rpart$cptable[,"xerror"]),"CP"]
+
+# Prune the tree using the best cp.
+classifier_rpart.pruned <- prune(classifier_rpart, cp = bestcp)
+
+# Make predictions on the trained data
+train_pred_rpart <- predict(classifier_rpart.pruned, train_data[, predictor_cols], type = 'class')
+
+# Get the accuracy of the model on the test set.
+accuracy_rpart <- sum(train_pred_rpart == train_data$GeneralHealth) / nrow(train_data)
+
+# Print the accuracy
+print(paste('Accuracy for training data using rpart is found to be', round(accuracy_rpart * 100, 2), '%'))
+```
+
+### Fourth model: Random forest.
+
+```{r}
+library(ranger)
+
+# Build the Random Forest model
+ranger <- ranger(
+    formula   = as.factor(GeneralHealth) ~ ., 
+    data      = train_data, 
+    num.trees = 1000,
+    mtry = sqrt(ncol(train_data)), # You can adjust the number of features considered for each split
+    importance = "permutation"
+  )
+
+```
+
+```{r}
+# Make predictions on the test data
+test_pred_rf <- predict(ranger, data = test_data)$predictions
+
+# Compare predicted and actual values
+accuracy_rf <- sum(test_pred_rf == test_data$GeneralHealth) / nrow(test_data)
+
+# Print the accuracy
+print(paste('Accuracy for test data using ranger is found to be', round(accuracy_rf * 100, 2), '%'))
+
+```
+
+### Variable importance
+
+```{r}
+# Sort the variable importance in descending order
+sorted_importance <- sort(ranger$variable.importance, decreasing = TRUE)
+
+# Get the names of the variables corresponding to the sorted importance values
+sorted_names <- names(sorted_importance)
+
+# Create a bar plot with sorted importance and corresponding variable names as labels
+barplot(sorted_importance[1:10], 
+        names.arg = sorted_names[1:10],  
+        las = 2,  
+        ylab = "Importance", 
+        main = "Variable Importance",
+        col = "skyblue",
+        cex.names = 0.6)  
+```
