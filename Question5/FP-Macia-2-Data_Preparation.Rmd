@@ -1,0 +1,383 @@
+---
+title: "Final Project - Macia - 2 - Data Preparation"
+author: "Josep Damià Ruiz Pons and Maçià Bartomeu Llabrés Ferrer"
+date: "2023-12-14"
+output: html_document
+---
+
+We start by loading the previous cleaned file and check if the data is the same.
+```{r}
+df <- read.csv("FPdata_CLEAN.csv", stringsAsFactors = TRUE)
+str(df)
+summary(df)
+```
+
+Let's define a threshold for NA's per show and visualize that rows.
+```{r}
+threshold <- 5
+rows_with_many_nas <- which(rowSums(is.na(df)) > threshold)
+df[rows_with_many_nas, ]
+df <- df[-rows_with_many_nas, ]
+```
+
+To not mess with the original data, we create a "copy" of it and manipulate it. Usually we transform factors to int assigning an ascendent number following alphabetical order. In other cases we binarize the columns, with the first level being 0. In some cases we binarize columns with more than two levels to simplify, take RemovedTeeth as exemple, where 0 means "None of them" and 1 any of the rest. If keeping the NA's makes any sense, -1 is assigned to that values.
+```{r}
+# Crear un nuevo data frame con la misma estructura pero sin datos
+cdf <- data.frame(df)
+```
+
+## State
+```{r}
+table(df$State)
+cdf$State <- factor(df$State)
+  # Asigna un número único a cada nivel del factor
+  cdf$State <- as.integer(cdf$State)
+```
+
+## Gender
+```{r}
+table(df$Gender, useNA = "ifany")
+
+cdf$Gender <- ifelse(df$Gender == "Female", 0, 1)
+table(cdf$Gender)
+```
+
+## General health
+```{r}
+# Convertir el vector de datos a un factor con niveles ordenados de forma ascendente
+numeric_general_health <- factor(df$GeneralHealth, levels = c("Poor", "Fair", "Good", "Very good", "Excellent"))
+# Asignar -1 a los valores NA utilizando ifelse
+cdf$GeneralHealth <- ifelse(is.na(numeric_general_health), 4, as.integer(numeric_general_health))
+table(cdf$GeneralHealth)
+```
+
+## PhysicalHealthDays
+```{r}
+
+PhysicalHealthDays_frq <- table(df$PhysicalHealthDays, useNA = "ifany")
+PhysicalHealthDays_frq
+mode_PhysicalHealthDays <- names(PhysicalHealthDays_frq[which.max(PhysicalHealthDays_frq)])
+mode_PhysicalHealthDays
+cdf$PhysicalHealthDays <- ifelse(is.na(df$PhysicalHealthDays), as.numeric(mode_PhysicalHealthDays),as.numeric(df$PhysicalHealthDays))
+table(cdf$PhysicalHealthDays)
+```
+
+## MentalHealthDays
+```{r}
+
+MentalHealthDays_frq <- table(df$MentalHealthDays, useNA = "ifany") 
+MentalHealthDays_frq
+mode_MentalHealthDays <- names(MentalHealthDays_frq[which.max(MentalHealthDays_frq)])
+mode_MentalHealthDays
+cdf$MentalHealthDays <- ifelse(is.na(df$MentalHealthDays), as.numeric(mode_MentalHealthDays),as.numeric(df$MentalHealthDays))
+table(cdf$MentalHealthDays)
+```
+
+## LastCheckupTime
+```{r}
+table(df$LastCheckupTime, useNA = "ifany") 
+# Convertir el vector de datos a un factor con niveles ordenados de forma ascendente
+numeric_checkup_time <- factor(df$LastCheckupTime)
+# Asignar -1 a los valores NA utilizando ifelse
+cdf$LastCheckupTime <- ifelse(is.na(numeric_checkup_time), -1, as.integer(numeric_checkup_time))
+table(cdf$LastCheckupTime)
+```
+
+## PhysicalActivities
+```{r}
+table(df$PhysicalActivities, useNA = "ifany") 
+cdf$PhysicalActivities <- ifelse(df$PhysicalActivities == "", 1, ifelse(df$PhysicalActivities == "Yes", 1,0))
+table(cdf$PhysicalActivities)
+```
+
+## SleepHours
+```{r}
+SleepHours_frq <- table(df$SleepHours, useNA = "ifany") 
+SleepHours_frq
+mode_SleepHours <- names(SleepHours_frq[which.max(SleepHours_frq)])
+mode_SleepHours
+cdf$SleepHours <- ifelse(is.na(df$SleepHours), as.numeric(mode_SleepHours),as.numeric(df$SleepHours))
+table(cdf$SleepHours)
+```
+
+## RemovedTeeth
+```{r}
+table(df$RemovedTeeth, useNA = "ifany")
+cdf$RemovedTeeth <- ifelse(df$RemovedTeeth == "", 1, ifelse(grepl("None", df$RemovedTeeth),0,1))
+table(cdf$RemovedTeeth)
+```
+
+## HadHeartAttack
+```{r}
+table(df$HadHeartAttack, useNA = "ifany") 
+cdf$HadHeartAttack <- ifelse(df$HadHeartAttack == "", 0, ifelse(df$HadHeartAttack == "No", 0,1))
+table(cdf$HadHeartAttack)
+```
+
+## HadAngina
+```{r}
+table(df$HadAngina, useNA = "ifany") 
+cdf$HadAngina <- ifelse(df$HadAngina == "", 0, ifelse(df$HadAngina == "No", 0,1))
+table(cdf$HadAngina)
+```
+
+## HadStroke
+```{r}
+table(df$HadStroke, useNA = "ifany") 
+cdf$HadStroke <- ifelse(df$HadStroke == "", 0, ifelse(df$HadStroke == "No", 0,1))
+table(cdf$HadStroke)
+```
+
+## HadAsthma
+```{r}
+table(df$HadAsthma, useNA = "ifany") 
+cdf$HadAsthma <- ifelse(df$HadAsthma == "", 0, ifelse(df$HadAsthma == "No", 0,1))
+table(cdf$HadAsthma)
+```
+
+## HadSkinCancer
+```{r}
+table(df$HadSkinCancer, useNA = "ifany") 
+cdf$HadSkinCancer <- ifelse(df$HadSkinCancer == "", 0, ifelse(df$HadSkinCancer == "No", 0,1))
+table(cdf$HadSkinCancer)
+```
+
+## HadCOPD
+```{r}
+table(df$HadCOPD, useNA = "ifany") 
+cdf$HadCOPD <- ifelse(df$HadCOPD == "", 0, ifelse(df$HadCOPD == "No", 0,1))
+table(cdf$HadCOPD)
+```
+
+## HadDepressiveDisorder
+```{r}
+table(df$HadDepressiveDisorder, useNA = "ifany") 
+cdf$HadDepressiveDisorder <- ifelse(df$HadDepressiveDisorder == "", 0, ifelse(df$HadDepressiveDisorder == "No", 0,1))
+table(cdf$HadDepressiveDisorder)
+```
+
+## HadKidneyDisease
+```{r}
+table(df$HadKidneyDisease, useNA = "ifany") 
+cdf$HadKidneyDisease <- ifelse(df$HadKidneyDisease == "", 0, ifelse(df$HadKidneyDisease == "No", 0,1))
+table(cdf$HadKidneyDisease)
+```
+
+## HadArthritis
+```{r}
+table(df$HadArthritis, useNA = "ifany") 
+cdf$HadArthritis <- ifelse(df$HadArthritis == "", 0, ifelse(df$HadArthritis == "No", 0,1))
+table(cdf$HadArthritis)
+```
+
+## HadDiabetes
+```{r}
+table(df$HadDiabetes, useNA = "ifany") 
+cdf$HadDiabetes <- ifelse(df$HadDiabetes == "", 0, ifelse(grepl("No",df$HadDiabetes), 0,1))
+table(cdf$HadDiabetes)
+```
+
+## DeafOrHardOfHearing
+```{r}
+table(df$DeafOrHardOfHearing, useNA = "ifany") 
+cdf$DeafOrHardOfHearing <- ifelse(df$DeafOrHardOfHearing == "", 0, ifelse(df$DeafOrHardOfHearing == "No", 0,1))
+table(cdf$DeafOrHardOfHearing)
+```
+
+## BlindOrVisionDifficulty
+```{r}
+table(df$BlindOrVisionDifficulty, useNA = "ifany") 
+cdf$BlindOrVisionDifficulty <- ifelse(df$BlindOrVisionDifficulty == "", 0, ifelse(df$BlindOrVisionDifficulty == "No", 0,1))
+table(cdf$BlindOrVisionDifficulty)
+```
+
+## DifficultyConcentrating
+```{r}
+table(df$DifficultyConcentrating, useNA = "ifany") 
+cdf$DifficultyConcentrating <- ifelse(df$DifficultyConcentrating == "", 0, ifelse(df$DifficultyConcentrating == "No", 0,1))
+table(cdf$DifficultyConcentrating)
+```
+
+## DifficultyWalking
+```{r}
+table(df$DifficultyWalking, useNA = "ifany") 
+cdf$DifficultyWalking <- ifelse(df$DifficultyWalking == "", 0, ifelse(df$DifficultyWalking == "No", 0,1))
+table(cdf$DifficultyWalking)
+```
+
+## DifficultyDressingBathing
+```{r}
+table(df$DifficultyDressingBathing, useNA = "ifany") 
+cdf$DifficultyDressingBathing <- ifelse(df$DifficultyDressingBathing == "", 0, ifelse(df$DifficultyDressingBathing == "No", 0,1))
+table(cdf$DifficultyDressingBathing)
+```
+
+## DifficultyErrands
+```{r}
+table(df$DifficultyErrands, useNA = "ifany") 
+cdf$DifficultyErrands <- ifelse(df$DifficultyErrands == "", 0, ifelse(df$DifficultyErrands == "No", 0,1))
+table(cdf$DifficultyErrands)
+```
+
+## SmokerStatus
+```{r}
+table(df$SmokerStatus, useNA = "ifany") 
+cdf$SmokerStatus <- ifelse(df$SmokerStatus == "", 0, ifelse(grepl("Never smoked",df$SmokerStatus), 0,1))
+table(cdf$SmokerStatus)
+```
+
+## ECigarretteUsage
+```{r}
+table(df$ECigaretteUsage, useNA = "ifany") 
+cdf$ECigaretteUsage <- ifelse(df$ECigaretteUsage == "", 0, ifelse(grepl("Never smoked",df$ECigaretteUsage) | grepl("Not at all",df$ECigaretteUsage) , 0,1))
+table(cdf$ECigaretteUsage)
+```
+
+## ChestScan
+```{r}
+table(df$ChestScan, useNA = "ifany") 
+cdf$ChestScan <- ifelse(df$ChestScan == "", 0, ifelse(df$ChestScan == "No", 0,1))
+table(cdf$ChestScan)
+```
+
+## RaceEthnicityCategory
+Here are some changes respect the original code from our group. As I try to prove is there is any relation between the race and diseases, is better to keep this column as factor and create a new level for NA's to avoid multicollinearity.
+```{r}
+cdf$RaceEthnicityCategory <- df$RaceEthnicityCategory
+table(df$RaceEthnicityCategory, useNA = "ifany") 
+
+#cdf$RaceEthnicityCategory[df$RaceEthnicityCategory == ""] <- "White only, Non-Hispanic"
+levels(cdf$RaceEthnicityCategory)[levels(cdf$RaceEthnicityCategory) == ""] <- "0 - NA's"
+cdf$RaceEthnicityCategory <- factor(cdf$RaceEthnicityCategory)
+  #cdf$RaceEthnicityCategory <- as.integer(cdf$RaceEthnicityCategory)
+  table(cdf$RaceEthnicityCategory)
+```
+
+## AgeCategory
+```{r}
+table(df$AgeCategory, useNA = "ifany") 
+cdf$AgeCategory[df$AgeCategory == ""] <- "Age 65 to 69"
+cdf$AgeCategory <- factor(cdf$AgeCategory)
+  cdf$AgeCategory <- as.integer(cdf$AgeCategory)
+  table(cdf$AgeCategory)
+```
+
+## HeightInMeters
+```{r}
+height_frq <- table(df$HeightInMeters, useNA = "ifany") 
+height_frq
+mode_height <- names(height_frq[which.max(height_frq)])
+cdf$HeightInMeters <- ifelse(is.na(df$HeightInMeters),as.numeric(mode_height),as.numeric(df$HeightInMeters) )
+table(cdf$HeightInMeters, useNA = "ifany") 
+```
+
+## WeightInKilograms
+```{r}
+weight_frq <- table(df$WeightInKilograms) 
+weight_frq
+mode_weight <- names(weight_frq[which.max(weight_frq)])
+mode_weight
+cdf$WeightInKilograms <- ifelse(is.na(df$WeightInKilograms),as.numeric(mode_weight),as.numeric(df$WeightInKilograms) )
+table(cdf$WeightInKilograms, useNA = "ifany") 
+
+```
+
+## BMI
+```{r}
+BMI_frq <- table(df$BMI) 
+mode_BMI <- names(BMI_frq[which.max(BMI_frq)])
+mode_BMI
+cdf$BMI <- ifelse(is.na(df$BMI),as.numeric(mode_BMI),as.numeric(df$BMI) )
+hist(cdf$BMI)
+```
+
+```{r}
+quantiles = quantile(cdf$BMI)
+q1 <- quantiles[2]
+q3 <- quantiles[4]
+
+iqr = q3 - q1
+lower_bound = q1 - 1.5 * iqr
+upper_bound = q3 + 1.5 * iqr
+
+outliers <- cdf$BMI[cdf$BMI < lower_bound | cdf$BMI > upper_bound]
+cdf[cdf$BMI < lower_bound | cdf$BMI > upper_bound, ]
+df <- cdf[!(cdf$BMI < lower_bound | cdf$BMI > upper_bound), ]
+cdf <- cdf[!(cdf$BMI < lower_bound | cdf$BMI > upper_bound), ]
+```
+
+```{r}
+hist(cdf$BMI)
+table(cdf$HeightInMeters)
+hist(cdf$HeightInMeters)
+```
+
+## AlcoholDrinkers
+```{r}
+
+table(cdf$AlcoholDrinkers, useNA = "ifany") 
+cdf$AlcoholDrinkers <- ifelse(cdf$AlcoholDrinkers == "", 1, ifelse(cdf$AlcoholDrinkers == "No", 0,1))
+table(cdf$AlcoholDrinkers)
+```
+
+## HIVTesting
+```{r}
+table(cdf$HIVTesting, useNA = "ifany") 
+cdf$HIVTesting <- ifelse(cdf$HIVTesting == "", 0, ifelse(cdf$HIVTesting == "No", 0,1))
+table(cdf$HIVTesting)
+```
+
+## FluVaxLast12
+```{r}
+table(cdf$FluVaxLast12, useNA = "ifany") 
+cdf$FluVaxLast12 <- ifelse(cdf$FluVaxLast12 == "", 1, ifelse(cdf$FluVaxLast12 == "No", 0,1))
+table(cdf$FluVaxLast12)
+```
+
+## PneumoVaxEver
+```{r}
+table(cdf$PneumoVaxEver, useNA = "ifany") 
+cdf$PneumoVaxEver <- ifelse(cdf$PneumoVaxEver == "", 0, ifelse(cdf$PneumoVaxEver == "No", 0,1))
+table(cdf$PneumoVaxEver)
+```
+
+## TetanusLast10Tdap
+```{r}
+tetanus_frq <- table(cdf$TetanusLast10Tdap, useNA = "ifany") 
+tetanus_frq
+mode_TetanusLast10Tdap <- names(tetanus_frq[which.max(tetanus_frq)])
+mode_TetanusLast10Tdap
+cdf$TetanusLast10Tdap <- ifelse(cdf$TetanusLast10Tdap == "",0,ifelse(grepl(cdf$TetanusLast10Tdap, "No"), 0, 1) )
+table(cdf$TetanusLast10Tdap, useNA = "ifany")
+```
+
+## HighRiskLastYear
+```{r}
+table(cdf$HighRiskLastYear, useNA = "ifany") 
+cdf$HighRiskLastYear <- ifelse(cdf$HighRiskLastYear == "", 0, ifelse(cdf$HighRiskLastYear == "No", 0,1))
+table(cdf$HighRiskLastYear)
+```
+
+## CovidPos
+```{r}
+cdf$CovidPos <- df$CovidPos
+table(df$CovidPos, useNA = "ifany") 
+cdf$CovidPos <- ifelse(df$CovidPos == "",0,ifelse(grepl("No", df$CovidPos), 0, 1))
+table(cdf$CovidPos, useNA = "ifany")
+```
+
+```{r}
+str(cdf)
+summary(cdf)
+```
+
+
+As we have factors, now we can not plot the correlation heatmap.
+```{r}
+#heatmap(cor(cdf))
+```
+
+To save time in the future we'll save this to a new file called "FPdata_PREP.csv".
+```{r}
+write.csv(cdf, "FPdata_PREP.csv", row.names = FALSE)
+```

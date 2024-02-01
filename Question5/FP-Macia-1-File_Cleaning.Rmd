@@ -1,0 +1,45 @@
+---
+title: "Final Project - Macia - 1 - File Cleaning"
+author: "Josep Damià Ruiz Pons and Maçià Bartomeu Llabrés Ferrer"
+date: "2023-12-14"
+output: html_document
+---
+
+We start by loading and taking a look at the data.
+```{r}
+df <- read.csv("FPdata.csv")
+str(df)
+summary(df)
+```
+
+As we can clearly see we encountered our first problem. "FPdata.csv" has bad formatting, so we use RegEx to "clean" it.
+```{r}
+# Lee las líneas del archivo
+lineas <- readLines('FPdata.csv')
+
+# Elimina las comillas al principio y al final de cada línea.
+lineas <- gsub("^\"", "", lineas)
+lineas <- gsub("\"$", "", lineas)
+
+# Cambia las lineas con doble comilla ("") por una sola (")
+lineas <- gsub("\"\"", "\"", lineas)
+
+# Crea un nuevo archivo temporal sin las comillas al principio y al final
+# NO SE SI SE PUEDE HACER DE OTRA FORMA SIN EL ARCHIVO TEMPORAL
+archivo_temporal <- tempfile(fileext = ".csv")
+writeLines(lineas, archivo_temporal)
+
+# Lee el archivo CSV sin comillas al principio y al final
+df <- read.csv(file = archivo_temporal, header = TRUE, stringsAsFactors = TRUE, quote = "\"")
+```
+
+Let's check if we have "repaired" it.
+```{r}
+str(df)
+summary(df)
+```
+
+To save time in the future we'll save this to a new file called "FPdata_CLEAN.csv".
+```{r}
+write.csv(df, "FPdata_CLEAN.csv", row.names = FALSE)
+```
