@@ -1,11 +1,15 @@
 ---
 title: "Question Two"
 author: "Group Rimundo Lulio"
-output:
-  prettydoc::html_pretty:
-    theme: cayman
-    highlight: github
+output: html_document
 ---
+
+We run into a problem when we try to run Knit, if you run the RMD with Run All the code works fine, but if you convert to HTML throw Knit NaïveBayes throws and error and the execution stops, the error is the following :
+
+Error in `` `*tmp*`[[i]] ``:
+! subíndice fuera de  los límites
+
+We can't find any solution so this question won't have a HTML
 
 ```{r}
 cdf <- read.csv('FPdata_CLEAN.csv')
@@ -59,28 +63,12 @@ test_data <- balanced_data[ind==2,]
 
 Now that we have all necessary components to run our models we will try to make predicitions with them, trying different parameters and algorithms, the models presented here are the most optimals of the tested, a deep explanation of each model and the conclusions of each model are explained on the tecnical report of this final project.
 
-### First model: KNN 
-
-```{r}
-library(gmodels)
-library(class)
-
-predictor_cols <- setdiff(colnames(df), "GeneralHealth")
-
-calssifiers.KNN <- knn(train = train_data[, predictor_cols], 
-           test = test_data[, predictor_cols], 
-           cl = train_data$GeneralHealth, 
-           k = 6)
-
-results <- CrossTable(x = test_data$GeneralHealth, y = calssifiers.KNN, prop.chisq = FALSE)
-accuracy.KNN <- sum(results$t[1:2, 1:2]) / sum(results$t)
-print(paste("Knn accuracy:", round(accuracy.KNN * 100, 2), "%"))
-```
-
-### Second model: Naïve Bayes 
+### Naïve Bayes 
 
 ```{r}
 library(e1071)
+
+predictor_cols <- setdiff(colnames(df), "GeneralHealth")
 
 classifiers.NB <- naiveBayes(x = train_data[, predictor_cols], y = train_data$GeneralHealth)
 predicts.NB <- predict(classifiers.NB, newdata = test_data[, predictor_cols])
@@ -89,7 +77,7 @@ accuracy.NB <- sum(results.NB$Actual == results.NB$Predicted) / nrow(results.NB)
 print(paste("Naive Bayes accuracy:", round(accuracy.NB * 100, 2), "%"))
 ```
 
-### Third model: Decision tree
+### Decision tree
 
 ```{r}
 library(rpart.plot)
@@ -113,7 +101,7 @@ accuracy_rpart <- sum(train_pred_rpart == train_data$GeneralHealth) / nrow(train
 print(paste('Accuracy for training data using rpart is found to be', round(accuracy_rpart * 100, 2), '%'))
 ```
 
-### Fourth model: Random forest.
+### Random forest.
 
 ```{r}
 library(ranger)
