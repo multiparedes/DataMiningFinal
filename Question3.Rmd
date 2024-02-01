@@ -1,0 +1,84 @@
+---
+title: "PracticaFinal"
+author: "PPP"
+date: "2023-12-14"
+output: html_document
+---
+
+```{r}
+df <- read.csv(file = "FPdata_CLEAN.csv", header = TRUE, stringsAsFactors = TRUE, quote = "\"")
+```
+
+```{r}
+df <- df[, -which(names(df) == "PhysicalHealthDays")]
+df <- df[, -which(names(df) == "MentalHealthDays")]
+df <- df[, -which(names(df) == "SleepHours")]
+df <- df[, -which(names(df) == "HeightInMeters")]
+df <- df[, -which(names(df) == "WeightInKilograms")]
+df <- df[, -which(names(df) == "BMI")]
+str(df)
+```
+
+```{r}
+library(arules)
+library(arulesViz)
+data_trans <- as(df, "transactions")
+```
+
+```{r}
+rules_con <- apriori(data_trans, parameter = list(supp = 0.05, conf = 0.5, maxlen=2))
+covid_con<- subset(rules_con, subset = lhs %pin% "CovidPos=Yes")
+covid_con <- subset(covid_con, lift > 1)
+ordered_covid_con <- sort(covid_con, by = "lift", decreasing = TRUE)
+plot(ordered_covid_con, method = "graph", control = list(type = "items"))
+```
+
+```{r}
+rules_car <- apriori(data_trans, parameter = list(supp = 0.001, conf = 0.5))
+covid_car <- subset(rules_car, subset = rhs %pin% "CovidPos=Yes")
+covid_car <- subset(covid_car, lift > 1.5)
+ordeder_covid_car <- sort(covid_car, by = "lift", decreasing = TRUE)
+plot(ordeder_covid_car, method = "graph", control = list(type = "items"))
+```
+
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(corrplot)
+
+df$CovidPos <- as.factor(ifelse(df$CovidPos == "Tested positive using home test without a health professional", "Yes", "No"))
+
+df_dummy <- df %>%
+  select(HighRiskLastYear, Gender, AgeCategory, CovidPos) %>% 
+  mutate(across(everything(), as.factor)) %>% 
+  mutate(across(everything(), as.numeric)) 
+
+cor_matrix <- cor(df_dummy)
+
+corrplot(cor_matrix, method = "circle")
+```
+
+```{r}
+library(caTools)
+library(caret)
+set.seed(123)
+
+split <- createDataPartition(y = df$CovidPos, p = 0.7, list = FALSE)
+
+train_data <- df[split, ]
+test_data <- df[-split, ]
+
+model <- glm(CovidPos ~ HighRiskLastYear + Gender + AgeCategory, family = binomial, data = train_data)
+
+predictions <- predict(model, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, "Yes", "No")
+predicted_classes <- factor(predicted_classes, levels = levels(test_data$CovidPos))
+
+train_control <- trainControl(method = "cv", number = 10) 
+cv_model <- train(CovidPos ~ HighRiskLastYear + Gender + AgeCategory, data = df, method = "glm",
+                  family = "binomial", trControl = train_control)
+
+print(cv_model)
+```
