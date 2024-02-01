@@ -1,36 +1,50 @@
 ---
-title: "PracticaFinal"
-author: "Josep Damià Ruiz Pons"
+title: "Final Project"
+author: "Group Rimundo Lulio"
 date: "2023-12-14"
-output: html_document
+output:
+  prettydoc::html_pretty:
+    theme: cayman
+    highlight: github
 ---
 
-```{r}
-# Lee las líneas del archivo
-lineas <- readLines('FinalProjectDataset2.csv')
+This report presents the findings and conclusions of the final project for the Data Mining course. The project focused on analyzing a dataset provided by the CDC, containing information from the Behavioral Risk Factor Surveillance System (BRFSS). The BRFSS conducts annual telephone surveys to gather data on the health status of U.S. residents, the dataset used in this project comprises information on 445,132 residents.
 
-# Elimina las comillas al principio y al final de cada línea.
+The initial presentation of this project covered the data cleaning process in detail. As such, this report will not delve into the data cleaning procedures but will instead highlight the initial questions posed and the subsequent analyses conducted to address them.
+
+
+We start by loading and taking a look at the data.
+
+```{r}
+df <- read.csv("FPdata.csv")
+str(df)
+```
+As we can clearly see we encountered our first problem. “FPdata.csv” has bad formatting, so we use RegEx to “clean” it. 
+
+```{r}
+# Read all the lines of the file
+lineas <- readLines('FPdata.csv')
+
+# Remove start and end quotes
 lineas <- gsub("^\"", "", lineas)
 lineas <- gsub("\"$", "", lineas)
-# Cambia las lineas con doble comilla ("") por una sola (")
+# Change doble quotes to single ones
 lineas <- gsub("\"\"", "\"", lineas)
 
-# Crea un nuevo archivo temporal sin las comillas al principio y al final
-# NO SE SI SE PUEDE HACER DE OTRA FORMA SIN EL ARCHIVO TEMPORAL
+# Create the new df from a tmep file
 archivo_temporal <- tempfile(fileext = ".csv")
 writeLines(lineas, archivo_temporal)
 
-# Lee el archivo CSV sin comillas al principio y al final
+# Read the cleaned CSV
 df <- read.csv(file = archivo_temporal, header = TRUE, stringsAsFactors = TRUE, quote = "\"")
+
+#To save time in the future we’ll save this to a new file called “FPdata_CLEAN.csv”.
+#write.csv(df, "FPdata_CLEAN.csv", row.names = FALS
 ```
 
+As we can observe above the inital project with the corrupted data has been addressed, now we begin to do the data cleaning itself, first of all knowing that this is a telephone survey we will check entries that have more than five nan's, as this could mean that the call has been interrupted and the data could not be 'real'.
 
-
-```{r}
-summary(df)
-str(df)
-```
-
+Let’s define a threshold for NA’s per show and visualize that rows.
 
 ```{r}
 threshold <- 5
@@ -39,71 +53,92 @@ df[rows_with_many_nas, ]
 df <- df[-rows_with_many_nas, ]
 ```
 
-```{r}
+As we can see we have 40 values that follows our criteria, compared to the aproximate 400k entries of the dataset this could be removed without a major impact.
 
-# Crear un nuevo data frame con la misma estructura pero sin datos
+To not mess with the original data, we create a “copy” of it and manipulate it. Usually we transform factors to int assigning an ascendent number following alphabetical order. In other cases we binarize the columns, with the first level being 0. In some cases we binarize columns with more than two levels to simplify, take RemovedTeeth as exemple, where 0 means “None of them” and 1 any of the rest. If keeping the NA’s makes any sense, -1 is assigned to that values.
+
+```{r}
 cdf <- data.frame(df)
 ```
 
+Let's take a look column by columns and we will define how we will treat them.
+
 ## State
+
+State is a categorical value, our dataset need to be transformed to numerical data inorder to be used by the algorithms seen during the course, to code this column we will transform each factor to a int that represent each state.
+
 ```{r}
 table(df$State)
 cdf$State <- factor(df$State)
-  # Asigna un número único a cada nivel del factor
-  cdf$State <- as.integer(cdf$State)
+
+# Asign a unique value to each factor
+cdf$State <- as.integer(cdf$State)
 ```
 
 ## Gender
+
+Gender, in this case, is a binary class male or female, so we will do a binary encoding where 0 represents female and 1 male.
+
 ```{r}
 table(df$Gender, useNA = "ifany")
 
 cdf$Gender <- ifelse(df$Gender == "Female", 0, 1)
 table(cdf$Gender)
 ```
+
 ## General health
 
+General health is the same type as state but we have nan's, to deal with them we will initialy fill them with the mode, that in this case is 4.
+
 ```{r}
-# Convertir el vector de datos a un factor con niveles ordenados de forma ascendente
 numeric_general_health <- factor(df$GeneralHealth, levels = c("Poor", "Fair", "Good", "Very good", "Excellent"))
-# Asignar -1 a los valores NA utilizando ifelse
+
+#Fill NAN's with mode (4)
 cdf$GeneralHealth <- ifelse(is.na(numeric_general_health), 4, as.integer(numeric_general_health))
 table(cdf$GeneralHealth)
 ```
 
 ## PhysicalHealthDays
 
-```{r}
+PhysicalHealthDays is a numeric value that has nan's, because it won't make sense to have 3.2 days off or 0.4 we won't calculate the mean and we will use the mode again.
 
+```{r}
 PhysicalHealthDays_frq <- table(df$PhysicalHealthDays, useNA = "ifany")
-PhysicalHealthDays_frq
 mode_PhysicalHealthDays <- names(PhysicalHealthDays_frq[which.max(PhysicalHealthDays_frq)])
-mode_PhysicalHealthDays
+
 cdf$PhysicalHealthDays <- ifelse(is.na(df$PhysicalHealthDays), as.numeric(mode_PhysicalHealthDays),as.numeric(df$PhysicalHealthDays))
+
 table(cdf$PhysicalHealthDays)
 ```
 ## MentalHealthDays
 
-```{r}
+We will procede as same as with PhysicalHealthDays.
 
+```{r}
 MentalHealthDays_frq <- table(df$MentalHealthDays, useNA = "ifany") 
-MentalHealthDays_frq
 mode_MentalHealthDays <- names(MentalHealthDays_frq[which.max(MentalHealthDays_frq)])
-mode_MentalHealthDays
+
 cdf$MentalHealthDays <- ifelse(is.na(df$MentalHealthDays), as.numeric(mode_MentalHealthDays),as.numeric(df$MentalHealthDays))
+
 table(cdf$MentalHealthDays)
 ```
 
 ## LastCheckupTime
+
+With this column we will convert each categorical factor to a integer representing that class, and a -1 when we find any NAN, in this case we don't have any.
+
 ```{r}
 table(df$LastCheckupTime, useNA = "ifany") 
-# Convertir el vector de datos a un factor con niveles ordenados de forma ascendente
+
 numeric_checkup_time <- factor(df$LastCheckupTime)
-# Asignar -1 a los valores NA utilizando ifelse
+
 cdf$LastCheckupTime <- ifelse(is.na(numeric_checkup_time), -1, as.integer(numeric_checkup_time))
 table(cdf$LastCheckupTime)
 ```
 
 ## PhysicalActivities
+
+PhysicalActivities is a binary class with some columns being blank saces, representing a yes, and orinary yes and no.
 
 ```{r}
 table(df$PhysicalActivities, useNA = "ifany") 
@@ -113,15 +148,19 @@ table(cdf$PhysicalActivities)
 
 ## SleepHours
 
+SleepHours we will fill with the mode any nan, later we will normalize this continuous values between 0 and 1.
+
 ```{r}
 SleepHours_frq <- table(df$SleepHours, useNA = "ifany") 
-SleepHours_frq
 mode_SleepHours <- names(SleepHours_frq[which.max(SleepHours_frq)])
-mode_SleepHours
+
 cdf$SleepHours <- ifelse(is.na(df$SleepHours), as.numeric(mode_SleepHours),as.numeric(df$SleepHours))
 table(cdf$SleepHours)
 ```
 ## RemovedTeeth
+
+RemovedTeeth is as same as LastCheckupTime
+
 ```{r}
 table(df$RemovedTeeth, useNA = "ifany")
 cdf$RemovedTeeth <- ifelse(df$RemovedTeeth == "", 1, ifelse(grepl("None", df$RemovedTeeth),0,1))
@@ -129,6 +168,8 @@ table(cdf$RemovedTeeth)
 ```
 
 ## HadHeartAttack
+
+Hearth atack is as same as PhysicalActivities
 
 ```{r}
 table(df$HadHeartAttack, useNA = "ifany") 
@@ -138,26 +179,36 @@ table(cdf$HadHeartAttack)
 
 ## HadAngina
 
+HadAngina is as same as PhysicalActivities
+
 ```{r}
 table(df$HadAngina, useNA = "ifany") 
 cdf$HadAngina <- ifelse(df$HadAngina == "", 0, ifelse(df$HadAngina == "No", 0,1))
 table(cdf$HadAngina)
 ```
 
-
 ## HadStroke
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$HadStroke, useNA = "ifany") 
 cdf$HadStroke <- ifelse(df$HadStroke == "", 0, ifelse(df$HadStroke == "No", 0,1))
 table(cdf$HadStroke)
 ```
 ## HadAsthma
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$HadAsthma, useNA = "ifany") 
 cdf$HadAsthma <- ifelse(df$HadAsthma == "", 0, ifelse(df$HadAsthma == "No", 0,1))
 table(cdf$HadAsthma)
 ```
 ## HadSkinCancer
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$HadSkinCancer, useNA = "ifany") 
 cdf$HadSkinCancer <- ifelse(df$HadSkinCancer == "", 0, ifelse(df$HadSkinCancer == "No", 0,1))
@@ -165,6 +216,9 @@ table(cdf$HadSkinCancer)
 ```
 
 ## HadCOPD
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$HadCOPD, useNA = "ifany") 
 cdf$HadCOPD <- ifelse(df$HadCOPD == "", 0, ifelse(df$HadCOPD == "No", 0,1))
@@ -172,14 +226,19 @@ table(cdf$HadCOPD)
 ```
 
 ## HadDepressiveDisorder
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$HadDepressiveDisorder, useNA = "ifany") 
 cdf$HadDepressiveDisorder <- ifelse(df$HadDepressiveDisorder == "", 0, ifelse(df$HadDepressiveDisorder == "No", 0,1))
 table(cdf$HadDepressiveDisorder)
 ```
 
-
 ## HadKidneyDisease
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$HadKidneyDisease, useNA = "ifany") 
 cdf$HadKidneyDisease <- ifelse(df$HadKidneyDisease == "", 0, ifelse(df$HadKidneyDisease == "No", 0,1))
@@ -187,6 +246,9 @@ table(cdf$HadKidneyDisease)
 ```
 
 ## HadArthritis
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$HadArthritis, useNA = "ifany") 
 cdf$HadArthritis <- ifelse(df$HadArthritis == "", 0, ifelse(df$HadArthritis == "No", 0,1))
@@ -194,6 +256,9 @@ table(cdf$HadArthritis)
 ```
 
 ## HadDiabetes
+
+HAdDiaetes is a special case, where we have 3 values, 'No', 'No, pre-diabetes or borderline diabetes' and yes, our group opted to binarize this columns with yes and no, grouping the first two group at one.
+
 ```{r}
 table(df$HadDiabetes, useNA = "ifany") 
 cdf$HadDiabetes <- ifelse(df$HadDiabetes == "", 0, ifelse(grepl("No",df$HadDiabetes), 0,1))
@@ -201,6 +266,9 @@ table(cdf$HadDiabetes)
 ```
 
 ## DeafOrHardOfHearing
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$DeafOrHardOfHearing, useNA = "ifany") 
 cdf$DeafOrHardOfHearing <- ifelse(df$DeafOrHardOfHearing == "", 0, ifelse(df$DeafOrHardOfHearing == "No", 0,1))
@@ -208,6 +276,9 @@ table(cdf$DeafOrHardOfHearing)
 ```
 
 ## BlindOrVisionDifficulty
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$BlindOrVisionDifficulty, useNA = "ifany") 
 cdf$BlindOrVisionDifficulty <- ifelse(df$BlindOrVisionDifficulty == "", 0, ifelse(df$BlindOrVisionDifficulty == "No", 0,1))
@@ -215,18 +286,27 @@ table(cdf$BlindOrVisionDifficulty)
 ```
 
 ## DifficultyConcentrating
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$DifficultyConcentrating, useNA = "ifany") 
 cdf$DifficultyConcentrating <- ifelse(df$DifficultyConcentrating == "", 0, ifelse(df$DifficultyConcentrating == "No", 0,1))
 table(cdf$DifficultyConcentrating)
 ```
 ## DifficultyWalking
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$DifficultyWalking, useNA = "ifany") 
 cdf$DifficultyWalking <- ifelse(df$DifficultyWalking == "", 0, ifelse(df$DifficultyWalking == "No", 0,1))
 table(cdf$DifficultyWalking)
 ```
 ## DifficultyDressingBathing
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$DifficultyDressingBathing, useNA = "ifany") 
 cdf$DifficultyDressingBathing <- ifelse(df$DifficultyDressingBathing == "", 0, ifelse(df$DifficultyDressingBathing == "No", 0,1))
@@ -234,6 +314,9 @@ table(cdf$DifficultyDressingBathing)
 ```
 
 ## DifficultyErrands
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$DifficultyErrands, useNA = "ifany") 
 cdf$DifficultyErrands <- ifelse(df$DifficultyErrands == "", 0, ifelse(df$DifficultyErrands == "No", 0,1))
@@ -241,6 +324,9 @@ table(cdf$DifficultyErrands)
 ```
 
 ## SmokerStatus
+
+This case is similar to HadDiabetes, where we only care if they smoke or not, we will binarice this column.
+
 ```{r}
 table(df$SmokerStatus, useNA = "ifany") 
 cdf$SmokerStatus <- ifelse(df$SmokerStatus == "", 0, ifelse(grepl("Never smoked",df$SmokerStatus), 0,1))
@@ -248,6 +334,9 @@ table(cdf$SmokerStatus)
 ```
 
 ## ECigarretteUsage
+
+Same as SmokingStatus, grouping by no and yes, at the moment of the survey.
+
 ```{r}
 table(df$ECigaretteUsage, useNA = "ifany") 
 cdf$ECigaretteUsage <- ifelse(df$ECigaretteUsage == "", 0, ifelse(grepl("Never smoked",df$ECigaretteUsage) | grepl("Not at all",df$ECigaretteUsage) , 0,1))
@@ -255,6 +344,9 @@ table(cdf$ECigaretteUsage)
 ```
 
 ## ChestScan
+
+Same as PhysicalActivities
+
 ```{r}
 table(df$ChestScan, useNA = "ifany") 
 cdf$ChestScan <- ifelse(df$ChestScan == "", 0, ifelse(df$ChestScan == "No", 0,1))
@@ -263,6 +355,9 @@ table(cdf$ChestScan)
 
 
 ## RaceEthnicityCategory
+
+Same as LastCheckupTime
+
 ```{r}
 cdf$RaceEthnicityCategory <- df$RaceEthnicityCategory
 table(df$RaceEthnicityCategory, useNA = "ifany") 
@@ -274,6 +369,9 @@ cdf$RaceEthnicityCategory <- factor(cdf$RaceEthnicityCategory)
 ```
 
 ## AgeCategory
+
+Same as LastCheckupTime
+
 ```{r}
 table(df$AgeCategory, useNA = "ifany") 
 cdf$AgeCategory[df$AgeCategory == ""] <- "Age 65 to 69"
@@ -284,36 +382,40 @@ cdf$AgeCategory <- factor(cdf$AgeCategory)
 
 ## HeightInMeters
 
+Same as PhysicalHealthDays
+
 ```{r}
 height_frq <- table(df$HeightInMeters, useNA = "ifany") 
-height_frq
+
 mode_height <- names(height_frq[which.max(height_frq)])
 cdf$HeightInMeters <- ifelse(is.na(df$HeightInMeters),as.numeric(mode_height),as.numeric(df$HeightInMeters) )
+
 table(cdf$HeightInMeters, useNA = "ifany") 
 ```
 ## WeightInKilograms
 
-
+Same as PhysicalHealthDays
 
 ```{r}
 weight_frq <- table(df$WeightInKilograms) 
-weight_frq
-mode_weight <- names(weight_frq[which.max(weight_frq)])
-mode_weight
-cdf$WeightInKilograms <- ifelse(is.na(df$WeightInKilograms),as.numeric(mode_weight),as.numeric(df$WeightInKilograms) )
-table(cdf$WeightInKilograms, useNA = "ifany") 
 
+mode_weight <- names(weight_frq[which.max(weight_frq)])
+cdf$WeightInKilograms <- ifelse(is.na(df$WeightInKilograms),as.numeric(mode_weight),as.numeric(df$WeightInKilograms) )
+
+table(cdf$WeightInKilograms, useNA = "ifany") 
 ```
 ## BMI
+
+As we know BMI is a linear combinarion of Height and Weigth, first of all we will take a look at the distribution of the data to check if we observe some strange data such as outliers.
+
 ```{r}
 BMI_frq <- table(df$BMI) 
 mode_BMI <- names(BMI_frq[which.max(BMI_frq)])
-mode_BMI
 cdf$BMI <- ifelse(is.na(df$BMI),as.numeric(mode_BMI),as.numeric(df$BMI) )
 hist(cdf$BMI)
 ```
 
-
+As we can see this doesn't follow a normal distributon and presents outliers, we will calculate the IQR to check which indidividuals exceed the 1.5 IQR. 
 
 ```{r}
 quantiles = quantile(cdf$BMI)
@@ -330,13 +432,17 @@ df <- cdf[!(cdf$BMI < lower_bound | cdf$BMI > upper_bound), ]
 cdf <- cdf[!(cdf$BMI < lower_bound | cdf$BMI > upper_bound), ]
 ```
 
+Now that we have deleted the outliers, arround 20k of them, we will take a look again at the distribution.
+
 ```{r}
 hist(cdf$BMI)
-table(cdf$HeightInMeters)
-hist(cdf$HeightInMeters)
 ```
 
+New can observe that we didn't improve much our distribution, upon further research we can observe that we have quite larges BMI measure, at the begging this socked us a bit but then we remembered that this are entries from US residents and we know that they tend to have overweight problems so we will no treat this values as outliers and will be used as they are.
+
 ## AlcoholDrinkers
+
+Same as PhysicalActivities
 
 ```{r}
 
@@ -347,6 +453,8 @@ table(cdf$AlcoholDrinkers)
 
 ## HIVTesting
 
+Same as PhysicalActivities
+
 ```{r}
 table(cdf$HIVTesting, useNA = "ifany") 
 cdf$HIVTesting <- ifelse(cdf$HIVTesting == "", 0, ifelse(cdf$HIVTesting == "No", 0,1))
@@ -354,6 +462,8 @@ table(cdf$HIVTesting)
 ```
 
 ## FluVaxLast12
+
+Same as PhysicalActivities
 
 ```{r}
 table(cdf$FluVaxLast12, useNA = "ifany") 
@@ -363,6 +473,8 @@ table(cdf$FluVaxLast12)
 
 ## PneumoVaxEver
 
+Same as PhysicalActivities
+
 ```{r}
 table(cdf$PneumoVaxEver, useNA = "ifany") 
 cdf$PneumoVaxEver <- ifelse(cdf$PneumoVaxEver == "", 0, ifelse(cdf$PneumoVaxEver == "No", 0,1))
@@ -370,6 +482,8 @@ table(cdf$PneumoVaxEver)
 ```
 
 ## TetanusLast10Tdap
+
+Same as HadDiabetes or SmokerStatus, we binarize this column.
 
 ```{r}
 tetanus_frq <- table(cdf$TetanusLast10Tdap, useNA = "ifany") 
@@ -382,6 +496,8 @@ table(cdf$TetanusLast10Tdap, useNA = "ifany")
 
 ## HighRiskLastYear
 
+Same as PhysicalActivities
+
 ```{r}
 table(cdf$HighRiskLastYear, useNA = "ifany") 
 cdf$HighRiskLastYear <- ifelse(cdf$HighRiskLastYear == "", 0, ifelse(cdf$HighRiskLastYear == "No", 0,1))
@@ -390,6 +506,8 @@ table(cdf$HighRiskLastYear)
 
 ## CovidPos
 
+Same as PhysicalActivities
+
 ```{r}
 cdf$CovidPos <- df$CovidPos
 table(df$CovidPos, useNA = "ifany") 
@@ -397,10 +515,20 @@ cdf$CovidPos <- ifelse(df$CovidPos == "",0,ifelse(grepl("No", df$CovidPos), 0, 1
 table(cdf$CovidPos, useNA = "ifany")
 ```
 
+Finally we have all of our data cleaned and addressed problems such as NAN's or outliers, to check we will run a str command to be sure.
+
 ```{r}
 str(cdf)
 ```
+
+Finally we will look at the correlation matrix to take a look at the data, see if there's some correlated columns that surprises us and helps with the formulation of the questions.
+
 ```{r}
 heatmap(cor(cdf))
 ```
+
+```{r}
+write.csv(df, "FPdata_CLEAN.csv", row.names = FALSE)
+```
+
 
